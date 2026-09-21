@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classroom Behavior & Reward Scoreboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        
+        .font-display {
+            font-family: 'Fredoka', cursive, sans-serif;
+        }
+
+        /* Pop animation for point increment */
+        @keyframes pop-up {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.35) rotate(-3deg); }
+            100% { transform: scale(1); }
+        }
+        .animate-pop-up {
+            animation: pop-up 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Shake animation for point decrement */
+        @keyframes shake-down {
+            0% { transform: scale(1) translateX(0); }
+            25% { transform: scale(0.9) translateX(-4px); }
+            75% { transform: scale(0.9) translateX(4px); }
+            100% { transform: scale(1) translateX(0); }
+        }
+        .animate-shake-down {
+            animation: shake-down 0.35s ease-in-out;
+        }
+
+        /* Floating point badge animation */
+        @keyframes float-up {
+            0% { opacity: 1; transform: translateY(0) scale(0.8); }
+            50% { opacity: 1; transform: translateY(-25px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-45px) scale(1); }
+        }
+        .floating-score {
+            position: absolute;
+            pointer-events: none;
+            animation: float-up 0.8s ease-out forwards;
+            font-weight: 800;
+            z-index: 30;
+        }
+
+        /* Glow effects for top performers */
+        .gold-glow {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+            border-color: #f59e0b;
+        }
+        
+        .silver-glow {
+            box-shadow: 0 0 12px rgba(156, 163, 175, 0.4);
+            border-color: #9ca3af;
+        }
+
+        .bronze-glow {
+            box-shadow: 0 0 10px rgba(217, 119, 6, 0.3);
+            border-color: #d97706;
+        }
+
+        /* Custom scrollbar styling */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .touch-action-manipulation {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col bg-slate-100 selection:bg-indigo-500 selection:text-white">
+
+    <!-- Top Header Navigation -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-indigo-600 flex items-center justify-center text-white shadow-md font-display font-bold text-xl">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <h1 id="header-title" class="text-xl sm:text-2xl font-black text-slate-800 font-display tracking-wide flex items-center gap-2">
+                        <span>Classroom Scoreboard</span>
+                    </h1>
+                    <div class="flex items-center space-x-2 text-xs font-semibold text-slate-500">
+                        <span id="header-date" class="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200"></span>
+                        <span class="text-slate-300">•</span>
+                        <span id="header-category" class="text-indigo-600 font-medium">Behavior Stars</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons Bar -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Sound Effect Toggle -->
+                <button id="sound-toggle-btn" onclick="toggleSound()" class="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-all text-sm flex items-center justify-center w-10 h-10 shadow-2xs" title="Toggle Sound FX">
+                    <i id="sound-icon" class="fa-solid fa-volume-high text-indigo-600"></i>
+                </button>
+
+                <!-- Leaderboard Button -->
+                <button onclick="openLeaderboard()" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-2 px-3.5 rounded-xl transition-all shadow-sm flex items-center space-x-2 text-sm active:scale-95">
+                    <i class="fa-solid fa-crown text-yellow-200"></i>
+                    <span class="hidden sm:inline">Leaderboard</span>
+                </button>
+
+                <!-- Settings Button -->
+                <button onclick="openSettings()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3.5 rounded-xl transition-all shadow-sm flex items-center space-x-2 text-sm active:scale-95">
+                    <i class="fa-solid fa-gear text-slate-300"></i>
+                    <span class="hidden sm:inline">Settings</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Class Filter Bar -->
+        <div class="bg-slate-50 border-t border-slate-200 px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto custom-scrollbar">
+            <div class="max-w-7xl mx-auto flex items-center space-x-2 min-w-max" id="class-tabs-container">
+                <!-- Class tabs injected by JS -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        
+        <!-- Quick Stats & Class Boost Bar -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Left Info -->
+            <div class="flex items-center space-x-6 w-full md:w-auto justify-around md:justify-start">
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block">Total Points</span>
+                    <span id="stat-total-points" class="text-2xl font-black text-indigo-600 font-display">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-200"></div>
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block">Students</span>
+                    <span id="stat-student-count" class="text-2xl font-black text-slate-700 font-display">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-200"></div>
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block">Top Performer</span>
+                    <span id="stat-top-student" class="text-sm font-bold text-amber-600 block truncate max-w-[130px]">None</span>
+                </div>
+            </div>
+
+            <!-- Right Quick Class Point Boost -->
+            <div class="flex items-center space-x-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider hidden lg:inline mr-1">Class Boost:</span>
+                <button onclick="boostCurrentClass(1)" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold py-2 px-3 rounded-lg transition-colors flex items-center space-x-1 active:scale-95">
+                    <i class="fa-solid fa-sparkles text-indigo-500"></i>
+                    <span>+1 All</span>
+                </button>
+                <button onclick="boostCurrentClass(5)" class="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold py-2 px-3 rounded-lg transition-colors flex items-center space-x-1 active:scale-95">
+                    <i class="fa-solid fa-bolt text-emerald-500"></i>
+                    <span>+5 All</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State Container -->
+        <div id="empty-state" class="hidden bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 shadow-xs my-8">
+            <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-500 text-3xl">
+                <i class="fa-solid fa-user-plus"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-800 font-display mb-2">No Students Found</h2>
+            <p id="empty-state-msg" class="text-slate-500 max-w-md mx-auto mb-6 text-sm">Add students to your active class or select a different class tab above to begin tracking behavior points!</p>
+            <button onclick="openSettings('students')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-md active:scale-95 inline-flex items-center space-x-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Add Students Now</span>
+            </button>
+        </div>
+
+        <!-- Student Cards Grid -->
+        <div id="student-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <!-- Student cards dynamically rendered here -->
+        </div>
+    </main>
+
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center backdrop-blur-xs p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-sliders text-indigo-600 text-lg"></i>
+                    <h3 class="text-lg font-bold text-slate-800 font-display">Scoreboard Configuration</h3>
+                </div>
+                <button onclick="closeSettings()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Settings Tabs Navigation -->
+            <div class="flex border-b border-slate-200 bg-white px-6 space-x-4 text-sm font-semibold text-slate-500">
+                <button id="set-tab-general" onclick="switchSettingsTab('general')" class="py-3 border-b-2 border-indigo-600 text-indigo-600 font-bold focus:outline-none">General</button>
+                <button id="set-tab-classes" onclick="switchSettingsTab('classes')" class="py-3 border-b-2 border-transparent hover:text-slate-800 focus:outline-none">Classes</button>
+                <button id="set-tab-students" onclick="switchSettingsTab('students')" class="py-3 border-b-2 border-transparent hover:text-slate-800 focus:outline-none">Students</button>
+                <button id="set-tab-milestones" onclick="switchSettingsTab('milestones')" class="py-3 border-b-2 border-transparent hover:text-slate-800 focus:outline-none">Rewards</button>
+            </div>
+
+            <!-- Modal Content Body -->
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                
+                <!-- TAB 1: GENERAL SETTINGS -->
+                <div id="settings-panel-general" class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Point System Name / Category</label>
+                        <input type="text" id="input-system-name" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="e.g., Behavior Stars, Focus Bucks">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Default Increment (+)</label>
+                            <input type="number" id="input-inc-val" min="1" max="50" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Default Decrement (-)</label>
+                            <input type="number" id="input-dec-val" min="1" max="50" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-red-500 mb-3">Reset Options</h4>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button onclick="requestResetScores()" class="flex-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold py-2.5 px-4 rounded-xl transition-colors text-sm flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span>Reset Today's Scores to Zero</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: CLASS MANAGEMENT -->
+                <div id="settings-panel-classes" class="hidden space-y-5">
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Manage Classes (Max 4)</h4>
+                        <span id="class-count-badge" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">0/4</span>
+                    </div>
+
+                    <!-- Add Class Form -->
+                    <form id="add-class-form" onsubmit="handleAddClass(event)" class="flex gap-2">
+                        <input type="text" id="new-class-name" class="flex-1 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Enter class name (e.g., Period 1 Math)..." maxlength="30">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-sm transition-colors">Add</button>
+                    </form>
+
+                    <!-- Class List -->
+                    <ul id="settings-class-list" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                        <!-- Classes rendered here -->
+                    </ul>
+                </div>
+
+                <!-- TAB 3: STUDENT MANAGEMENT -->
+                <div id="settings-panel-students" class="hidden space-y-5">
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Manage Students</h4>
+                        <span id="student-count-badge" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">0</span>
+                    </div>
+
+                    <!-- Add Student Form -->
+                    <form id="add-student-form" onsubmit="handleAddStudent(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input type="text" id="new-student-name" class="sm:col-span-2 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Student Full Name..." maxlength="30">
+                        <select id="new-student-class" class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <!-- Options injected -->
+                        </select>
+                        <button type="submit" class="sm:col-span-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors mt-1">
+                            + Add Student
+                        </button>
+                    </form>
+
+                    <!-- Student List -->
+                    <ul id="settings-student-list" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                        <!-- Students rendered here -->
+                    </ul>
+                </div>
+
+                <!-- TAB 4: REWARD MILESTONES -->
+                <div id="settings-panel-milestones" class="hidden space-y-5">
+                    <div class="border-b pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Milestone Badges & Rewards</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Students earn celebratory badges as they hit these score targets!</p>
+                    </div>
+
+                    <div id="milestones-editor-container" class="space-y-3">
+                        <!-- Milestone items rendered here -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button onclick="closeSettings()" class="bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold py-2.5 px-5 rounded-xl text-sm transition-colors">
+                    Close
+                </button>
+                <button onclick="saveSettings()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-colors shadow-sm">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center backdrop-blur-xs p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-amber-50 to-orange-50">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-trophy text-amber-500 text-xl"></i>
+                    <h3 class="text-xl font-black text-slate-800 font-display">Classroom Leaderboard</h3>
+                </div>
+                <button onclick="closeLeaderboard()" class="w-8 h-8 rounded-full bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors shadow-2xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                <!-- Top 3 Podium -->
+                <div id="podium-container" class="flex items-end justify-center gap-2 sm:gap-4 pt-6 pb-2 border-b border-slate-100">
+                    <!-- Podium items injected -->
+                </div>
+
+                <!-- Leaderboard Full List -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Rankings</h4>
+                    <div id="leaderboard-list" class="space-y-2">
+                        <!-- List injected -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button onclick="closeLeaderboard()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-colors">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Celebration Modal (Milestone Unlocked) -->
+    <div id="celebration-modal" class="fixed inset-0 bg-slate-900/70 hidden z-50 flex items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all scale-100 relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-amber-200 rounded-full blur-2xl opacity-50"></div>
+            <div class="absolute -bottom-12 -left-12 w-32 h-32 bg-indigo-200 rounded-full blur-2xl opacity-50"></div>
+
+            <div class="relative z-10">
+                <div id="celeb-icon" class="text-6xl mb-3 animate-bounce">🏆</div>
+                <h3 class="text-2xl font-black text-slate-800 font-display mb-1">Milestone Reached!</h3>
+                <p id="celeb-student-name" class="text-lg font-bold text-indigo-600 mb-2">Student Name</p>
+                <div class="inline-block bg-amber-100 border border-amber-300 text-amber-800 font-bold px-4 py-1.5 rounded-full text-sm mb-4" id="celeb-badge-title">
+                    🥇 Gold Champion
+                </div>
+                <p class="text-xs text-slate-500 mb-6">Great job demonstrating positive behavior in class!</p>
+
+                <button onclick="closeCelebration()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-95">
+                    Awesome! 🎉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal (Replaces browser confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center backdrop-blur-xs p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 text-center space-y-4">
+            <div class="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-bold text-slate-800 font-display">Are you sure?</h3>
+            <p id="confirm-message" class="text-sm text-slate-500">This action cannot be undone.</p>
+            <div class="flex gap-3 pt-2">
+                <button id="confirm-cancel-btn" onclick="closeConfirmModal(false)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition-colors">
+                    Cancel
+                </button>
+                <button id="confirm-ok-btn" onclick="closeConfirmModal(true)" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors shadow-sm">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Storage Keys
+        const STORAGE_KEY_STUDENTS = 'cls_tracker_v2_students';
+        const STORAGE_KEY_CLASSES = 'cls_tracker_v2_classes';
+        const STORAGE_KEY_SETTINGS = 'cls_tracker_v2_settings';
+        const STORAGE_KEY_DATE = 'cls_tracker_v2_last_date';
+
+        // Maximum Constraints
+        const MAX_CLASSES = 4;
+
+        // Default State Configuration
+        let state = {
+            activeClassId: 'all', // 'all' or class ID
+            soundEnabled: true,
+            classes: [
+                { id: 'cls_1', name: 'Homeroom', color: 'indigo' },
+                { id: 'cls_2', name: 'Period 1 - Math', color: 'emerald' }
+            ],
+            students: [
+                { id: 'std_1', name: 'Alex Johnson', classId: 'cls_1', score: 0 },
+                { id: 'std_2', name: 'Bella Martinez', classId: 'cls_1', score: 0 },
+                { id: 'std_3', name: 'Chris Evans', classId: 'cls_2', score: 0 },
+                { id: 'std_4', name: 'Diana Prince', classId: 'cls_2', score: 0 }
+            ],
+            settings: {
+                systemName: 'Behavior Stars',
+                incVal: 1,
+                decVal: 1,
+                milestones: [
+                    { pts: 10, name: 'Bronze Star', icon: '🥉' },
+                    { pts: 25, name: 'Silver Star', icon: '🥈' },
+                    { pts: 50, name: 'Gold Champion', icon: '🥇' },
+                    { pts: 100, name: 'Class Legend', icon: '👑' }
+                ]
+            },
+            lastDate: null
+        };
+
+        // Confirmation Modal Handler Callback
+        let confirmResolver = null;
+
+        // Web Audio API Synthesizer (No external audio files needed!)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!state.soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+
+                if (type === 'inc') {
+                    // Upbeat major third chord sound
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'dec') {
+                    // Subtle downward tone
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(180, now + 0.15);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'milestone') {
+                    // Fanfare Arpeggio
+                    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                        gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.25);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + idx * 0.08);
+                        osc.stop(now + idx * 0.08 + 0.25);
+                    });
+                }
+            } catch (e) {
+                console.error("Audio playback error:", e);
+            }
+        }
+
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (state.soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high text-indigo-600';
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-slate-400';
+            }
+        }
+
+        function initApp() {
+            loadData();
+            checkDailyReset();
+            renderHeader();
+            renderClassTabs();
+            renderGrid();
+            renderStats();
+        }
+
+        function loadData() {
+            const savedStudents = localStorage.getItem(STORAGE_KEY_STUDENTS);
+            const savedClasses = localStorage.getItem(STORAGE_KEY_CLASSES);
+            const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+            const savedDate = localStorage.getItem(STORAGE_KEY_DATE);
+
+            if (savedStudents) {
+                try { state.students = JSON.parse(savedStudents); } catch (e) {}
+            }
+            if (savedClasses) {
+                try { state.classes = JSON.parse(savedClasses); } catch (e) {}
+            }
+            if (savedSettings) {
+                try { state.settings = { ...state.settings, ...JSON.parse(savedSettings) }; } catch (e) {}
+            }
+            if (savedDate) {
+                state.lastDate = savedDate;
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(state.students));
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(state.classes));
+            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(state.settings));
+        }
+
+        function checkDailyReset() {
+            const today = new Date().toDateString();
+            document.getElementById('header-date').innerText = today;
+
+            if (state.lastDate !== today) {
+                // Reset all scores to zero on a new day
+                state.students.forEach(s => s.score = 0);
+                state.lastDate = today;
+                localStorage.setItem(STORAGE_KEY_DATE, today);
+                saveData();
+            }
+        }
+
+        function renderHeader() {
+            document.getElementById('header-category').innerText = state.settings.systemName || 'Behavior Stars';
+        }
+
+        function renderClassTabs() {
+            const container = document.getElementById('class-tabs-container');
+            container.innerHTML = '';
+
+            // 'All Students' tab
+            const allBtn = document.createElement('button');
+            const isAllActive = state.activeClassId === 'all';
+            allBtn.className = `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                isAllActive 
+                    ? 'bg-indigo-600 text-white shadow-sm' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`;
+            allBtn.innerHTML = `<i class="fa-solid fa-users mr-1.5"></i>All Classes (${state.students.length})`;
+            allBtn.onclick = () => selectClass('all');
+            container.appendChild(allBtn);
+
+            // Class Tabs
+            state.classes.forEach(cls => {
+                const count = state.students.filter(s => s.classId === cls.id).length;
+                const isActive = state.activeClassId === cls.id;
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`;
+                btn.innerHTML = `<span>${escapeHtml(cls.name)}</span> <span class="ml-1 opacity-75">(${count})</span>`;
+                btn.onclick = () => selectClass(cls.id);
+                container.appendChild(btn);
+            });
+        }
+
+        function selectClass(classId) {
+            state.activeClassId = classId;
+            renderClassTabs();
+            renderGrid();
+            renderStats();
+        }
+
+        function getFilteredStudents() {
+            if (state.activeClassId === 'all') {
+                return state.students;
+            }
+            return state.students.filter(s => s.classId === state.activeClassId);
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('student-grid');
+            const emptyState = document.getElementById('empty-state');
+            const filtered = getFilteredStudents();
+
+            grid.innerHTML = '';
+
+            if (filtered.length === 0) {
+                grid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            grid.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            // Sort alphabetically for display
+            const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+            // Find top score for highlighting
+            const topScore = sorted.length > 0 ? Math.max(...sorted.map(s => s.score)) : 0;
+
+            sorted.forEach(student => {
+                const card = document.createElement('div');
+                
+                // Get milestones achieved
+                const badges = getEarnedBadges(student.score);
+                const nextMilestone = getNextMilestone(student.score);
+                const percentToNext = nextMilestone ? Math.min(100, Math.max(0, (student.score / nextMilestone.pts) * 100)) : 100;
+
+                // Card Styling based on top performer
+                let glowClass = 'border-slate-200';
+                if (student.score > 0 && student.score === topScore) {
+                    glowClass = 'gold-glow border-amber-400 bg-gradient-to-b from-amber-50/40 to-white';
+                }
+
+                card.className = `bg-white rounded-2xl p-4 shadow-sm border ${glowClass} flex flex-col justify-between relative transition-all duration-200 hover:shadow-md`;
+                card.id = `card-${student.id}`;
+
+                let scoreColor = 'text-slate-800';
+                if (student.score > 0) scoreColor = 'text-emerald-600';
+                if (student.score < 0) scoreColor = 'text-rose-600';
+
+                const classObj = state.classes.find(c => c.id === student.classId);
+                const classNameText = classObj ? classObj.name : 'Unassigned';
+
+                card.innerHTML = `
+                    <!-- Header with Name & Class -->
+                    <div class="mb-2">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-bold text-slate-800 font-display text-base leading-snug truncate pr-2" title="${escapeHtml(student.name)}">
+                                ${escapeHtml(student.name)}
+                            </h3>
+                            ${student.score > 0 && student.score === topScore ? '<span class="text-amber-500 text-xs" title="Top Performer"><i class="fa-solid fa-crown animate-bounce"></i></span>' : ''}
+                        </div>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">${escapeHtml(classNameText)}</span>
+                    </div>
+
+                    <!-- Earned Badges -->
+                    <div class="flex flex-wrap gap-1 my-1.5 min-h-[22px]">
+                        ${badges.map(b => `<span class="bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md" title="${escapeHtml(b.name)}">${b.icon} ${escapeHtml(b.name)}</span>`).join('')}
+                    </div>
+
+                    <!-- Score Big Display -->
+                    <div class="my-3 text-center relative py-1">
+                        <span id="score-${student.id}" class="text-4xl font-black ${scoreColor} font-display tracking-tight transition-all inline-block">
+                            ${student.score}
+                        </span>
+                    </div>
+
+                    <!-- Milestone Progress Bar -->
+                    <div class="mb-3">
+                        <div class="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                            <span>Progress</span>
+                            <span>${nextMilestone ? `${student.score}/${nextMilestone.pts}` : 'Max Badge!'}</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-indigo-500 to-amber-400 transition-all duration-300 rounded-full" style="width: ${percentToNext}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Increment / Decrement Buttons -->
+                    <div class="flex gap-2 mt-1">
+                        <button onclick="adjustScore('${student.id}', -${state.settings.decVal})" class="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 rounded-xl text-base transition-colors touch-action-manipulation active:scale-95 flex items-center justify-center">
+                            -${state.settings.decVal}
+                        </button>
+                        <button onclick="adjustScore('${student.id}', ${state.settings.incVal})" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold py-2.5 rounded-xl text-base transition-colors touch-action-manipulation active:scale-95 flex items-center justify-center">
+                            +${state.settings.incVal}
+                        </button>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        function adjustScore(studentId, amount) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            const prevScore = student.score;
+            student.score += amount;
+            saveData();
+
+            // Sound FX
+            playSound(amount > 0 ? 'inc' : 'dec');
+
+            // DOM direct update for instant snappy feel
+            const scoreEl = document.getElementById(`score-${studentId}`);
+            const cardEl = document.getElementById(`card-${studentId}`);
+
+            if (scoreEl) {
+                scoreEl.innerText = student.score;
+                
+                // Color update
+                scoreEl.classList.remove('text-slate-800', 'text-emerald-600', 'text-rose-600');
+                if (student.score > 0) scoreEl.classList.add('text-emerald-600');
+                else if (student.score < 0) scoreEl.classList.add('text-rose-600');
+                else scoreEl.classList.add('text-slate-800');
+
+                // Pop Animation
+                scoreEl.classList.remove('animate-pop-up', 'animate-shake-down');
+                void scoreEl.offsetWidth; // Reflow
+                if (amount > 0) {
+                    scoreEl.classList.add('animate-pop-up');
+                } else {
+                    scoreEl.classList.add('animate-shake-down');
+                }
+            }
+
+            // Create floating point popup element (+1 or -1)
+            if (cardEl) {
+                const floatEl = document.createElement('div');
+                floatEl.className = `floating-score ${amount > 0 ? 'text-emerald-500' : 'text-rose-500'} text-xl`;
+                floatEl.innerText = (amount > 0 ? '+' : '') + amount;
+                floatEl.style.left = '50%';
+                floatEl.style.top = '40%';
+                cardEl.appendChild(floatEl);
+
+                setTimeout(() => floatEl.remove(), 800);
+            }
+
+            // Check if milestone crossed
+            if (amount > 0) {
+                checkMilestonesUnlocked(student, prevScore, student.score);
+            }
+
+            renderStats();
+            // Re-render grid after a tiny delay so progress bar updates smoothly
+            setTimeout(renderGrid, 400);
+        }
+
+        function boostCurrentClass(amount) {
+            const targets = getFilteredStudents();
+            if (targets.length === 0) return;
+
+            targets.forEach(s => {
+                s.score += amount;
+            });
+
+            saveData();
+            playSound('inc');
+            
+            // Confetti burst on class boost!
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 40,
+                    spread: 60,
+                    origin: { y: 0.7 }
+                });
+            }
+
+            renderGrid();
+            renderStats();
+        }
+
+        function getEarnedBadges(score) {
+            return state.settings.milestones
+                .filter(m => score >= m.pts)
+                .sort((a, b) => a.pts - b.pts);
+        }
+
+        function getNextMilestone(score) {
+            const sorted = [...state.settings.milestones].sort((a, b) => a.pts - b.pts);
+            return sorted.find(m => score < m.pts) || null;
+        }
+
+        function checkMilestonesUnlocked(student, prevScore, newScore) {
+            const newlyUnlocked = state.settings.milestones.find(m => prevScore < m.pts && newScore >= m.pts);
+            if (newlyUnlocked) {
+                triggerCelebration(student, newlyUnlocked);
+            }
+        }
+
+        function triggerCelebration(student, milestone) {
+            playSound('milestone');
+
+            document.getElementById('celeb-student-name').innerText = student.name;
+            document.getElementById('celeb-badge-title').innerText = `${milestone.icon} ${milestone.name} (${milestone.pts} Points)`;
+            document.getElementById('celeb-icon').innerText = milestone.icon || '🏆';
+
+            document.getElementById('celebration-modal').classList.remove('hidden');
+
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        function closeCelebration() {
+            document.getElementById('celebration-modal').classList.add('hidden');
+        }
+
+        function renderStats() {
+            const filtered = getFilteredStudents();
+            const totalPoints = filtered.reduce((acc, curr) => acc + curr.score, 0);
+            
+            document.getElementById('stat-total-points').innerText = totalPoints;
+            document.getElementById('stat-student-count').innerText = filtered.length;
+
+            if (filtered.length > 0) {
+                const topStudent = [...filtered].sort((a, b) => b.score - a.score)[0];
+                if (topStudent && topStudent.score > 0) {
+                    document.getElementById('stat-top-student').innerText = `${topStudent.name} (${topStudent.score})`;
+                } else {
+                    document.getElementById('stat-top-student').innerText = 'None';
+                }
+            } else {
+                document.getElementById('stat-top-student').innerText = 'None';
+            }
+        }
+
+        function openLeaderboard() {
+            const filtered = getFilteredStudents();
+            const sorted = [...filtered].sort((a, b) => b.score - a.score);
+
+            const podiumContainer = document.getElementById('podium-container');
+            const listContainer = document.getElementById('leaderboard-list');
+
+            podiumContainer.innerHTML = '';
+            listContainer.innerHTML = '';
+
+            if (sorted.length === 0) {
+                listContainer.innerHTML = '<p class="text-slate-400 text-center py-4 text-sm">No students in this class yet.</p>';
+                document.getElementById('leaderboard-modal').classList.remove('hidden');
+                return;
+            }
+
+            // Top 3 Podium
+            const top1 = sorted[0];
+            const top2 = sorted[1];
+            const top3 = sorted[2];
+
+            const renderPodiumStep = (student, rank, color, height, icon) => {
+                if (!student) return '';
+                return `
+                    <div class="flex flex-col items-center flex-1 max-w-[110px]">
+                        <div class="text-[11px] font-extrabold text-slate-700 truncate w-full text-center mb-1">${escapeHtml(student.name)}</div>
+                        <div class="text-xs font-bold text-indigo-600 mb-1">${student.score} pts</div>
+                        <div class="w-full ${color} ${height} rounded-t-2xl flex flex-col items-center justify-center text-white shadow-md">
+                            <span class="text-xl mb-0.5">${icon}</span>
+                            <span class="font-display font-black text-sm">#${rank}</span>
+                        </div>
+                    </div>
+                `;
+            };
+
+            podiumContainer.innerHTML = `
+                ${renderPodiumStep(top2, 2, 'bg-slate-400', 'h-24', '🥈')}
+                ${renderPodiumStep(top1, 1, 'bg-amber-400', 'h-32', '👑')}
+                ${renderPodiumStep(top3, 3, 'bg-amber-600', 'h-20', '🥉')}
+            `;
+
+            // Rankings List
+            sorted.forEach((student, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm';
+                
+                const badges = getEarnedBadges(student.score);
+                const badgeText = badges.map(b => b.icon).join(' ');
+
+                row.innerHTML = `
+                    <div class="flex items-center space-x-3 truncate pr-2">
+                        <span class="font-display font-black text-slate-400 w-6 text-center">${idx + 1}</span>
+                        <span class="font-bold text-slate-800 truncate">${escapeHtml(student.name)}</span>
+                        <span>${badgeText}</span>
+                    </div>
+                    <span class="font-black text-indigo-600 font-display text-base">${student.score} pts</span>
+                `;
+                listContainer.appendChild(row);
+            });
+
+            document.getElementById('leaderboard-modal').classList.remove('hidden');
+        }
+
+        function closeLeaderboard() {
+            document.getElementById('leaderboard-modal').classList.add('hidden');
+        }
+
+        function openSettings(activeTab = 'general') {
+            document.getElementById('input-system-name').value = state.settings.systemName;
+            document.getElementById('input-inc-val').value = state.settings.incVal;
+            document.getElementById('input-dec-val').value = state.settings.decVal;
+
+            renderSettingsClasses();
+            renderSettingsStudents();
+            renderSettingsMilestones();
+            switchSettingsTab(activeTab);
+
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function switchSettingsTab(tabName) {
+            ['general', 'classes', 'students', 'milestones'].forEach(t => {
+                document.getElementById(`settings-panel-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`set-tab-${t}`);
+                btn.className = 'py-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 focus:outline-none';
+            });
+
+            document.getElementById(`settings-panel-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`set-tab-${tabName}`);
+            activeBtn.className = 'py-3 border-b-2 border-indigo-600 text-indigo-600 font-bold focus:outline-none';
+        }
+
+        function saveSettings() {
+            const sysName = document.getElementById('input-system-name').value.trim();
+            const inc = parseInt(document.getElementById('input-inc-val').value, 10);
+            const dec = parseInt(document.getElementById('input-dec-val').value, 10);
+
+            if (inc >= 1) state.settings.incVal = inc;
+            if (dec >= 1) state.settings.decVal = dec;
+            state.settings.systemName = sysName || 'Behavior Stars';
+
+            saveData();
+            renderHeader();
+            renderGrid();
+            renderClassTabs();
+            renderStats();
+            closeSettings();
+        }
+
+        function renderSettingsClasses() {
+            const list = document.getElementById('settings-class-list');
+            const badge = document.getElementById('class-count-badge');
+            
+            list.innerHTML = '';
+            badge.innerText = `${state.classes.length}/${MAX_CLASSES}`;
+
+            state.classes.forEach(cls => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100';
+                li.innerHTML = `
+                    <span class="font-bold text-slate-800 text-sm">${escapeHtml(cls.name)}</span>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="editClass('${cls.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-xs" title="Rename Class">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deleteClass('${cls.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs" title="Delete Class">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function handleAddClass(e) {
+            e.preventDefault();
+            if (state.classes.length >= MAX_CLASSES) {
+                showCustomModal("Limit Reached", "You can create up to 4 classes maximum.");
+                return;
+            }
+
+            const input = document.getElementById('new-class-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const newId = 'cls_' + Date.now().toString(36);
+            state.classes.push({ id: newId, name: name });
+            saveData();
+
+            input.value = '';
+            renderSettingsClasses();
+            renderSettingsStudents();
+            renderClassTabs();
+        }
+
+        async function deleteClass(classId) {
+            const classObj = state.classes.find(c => c.id === classId);
+            if (!classObj) return;
+
+            const confirmed = await showCustomConfirm(
+                "Delete Class?",
+                `Are you sure you want to delete "${classObj.name}"? Students in this class will become unassigned.`
+            );
+
+            if (confirmed) {
+                state.classes = state.classes.filter(c => c.id !== classId);
+                if (state.activeClassId === classId) {
+                    state.activeClassId = 'all';
+                }
+                saveData();
+                renderSettingsClasses();
+                renderSettingsStudents();
+                renderClassTabs();
+                renderGrid();
+            }
+        }
+
+        function editClass(classId) {
+            const classObj = state.classes.find(c => c.id === classId);
+            if (!classObj) return;
+
+            const newName = prompt("Edit class name:", classObj.name);
+            if (newName && newName.trim()) {
+                classObj.name = newName.trim();
+                saveData();
+                renderSettingsClasses();
+                renderClassTabs();
+                renderGrid();
+            }
+        }
+
+        function renderSettingsStudents() {
+            const list = document.getElementById('settings-student-list');
+            const badge = document.getElementById('student-count-badge');
+            const classSelect = document.getElementById('new-student-class');
+
+            list.innerHTML = '';
+            badge.innerText = `${state.students.length} Student${state.students.length === 1 ? '' : 's'}`;
+
+            // Populate class select dropdown
+            classSelect.innerHTML = state.classes.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+
+            const sorted = [...state.students].sort((a, b) => a.name.localeCompare(b.name));
+
+            sorted.forEach(student => {
+                const classObj = state.classes.find(c => c.id === student.classId);
+                const className = classObj ? classObj.name : 'Unassigned';
+
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100';
+                li.innerHTML = `
+                    <div>
+                        <span class="font-bold text-slate-800 text-sm block">${escapeHtml(student.name)}</span>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase">${escapeHtml(className)}</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="editStudent('${student.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-xs" title="Edit Student">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deleteStudent('${student.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs" title="Delete Student">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function handleAddStudent(e) {
+            e.preventDefault();
+
+            const input = document.getElementById('new-student-name');
+            const classSelect = document.getElementById('new-student-class');
+            const name = input.value.trim();
+
+            if (!name) return;
+
+            const newId = 'std_' + Date.now().toString(36);
+            state.students.push({
+                id: newId,
+                name: name,
+                classId: classSelect.value || (state.classes[0] ? state.classes[0].id : ''),
+                score: 0
+            });
+
+            saveData();
+            input.value = '';
+            renderSettingsStudents();
+            renderClassTabs();
+            renderGrid();
+            renderStats();
+        }
+
+        async function deleteStudent(studentId) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            const confirmed = await showCustomConfirm(
+                "Delete Student?",
+                `Are you sure you want to remove "${student.name}"?`
+            );
+
+            if (confirmed) {
+                state.students = state.students.filter(s => s.id !== studentId);
+                saveData();
+                renderSettingsStudents();
+                renderClassTabs();
+                renderGrid();
+                renderStats();
+            }
+        }
+
+        function editStudent(studentId) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            const newName = prompt("Edit student name:", student.name);
+            if (newName && newName.trim()) {
+                student.name = newName.trim();
+                saveData();
+                renderSettingsStudents();
+                renderGrid();
+            }
+        }
+
+        function renderSettingsMilestones() {
+            const container = document.getElementById('milestones-editor-container');
+            container.innerHTML = '';
+
+            state.settings.milestones.forEach((m, idx) => {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 items-center bg-slate-50 p-3 rounded-xl border border-slate-100';
+                row.innerHTML = `
+                    <div class="col-span-3">
+                        <label class="text-[10px] font-bold text-slate-400 block">Points</label>
+                        <input type="number" value="${m.pts}" onchange="updateMilestone(${idx}, 'pts', this.value)" class="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="text-[10px] font-bold text-slate-400 block">Icon Emoji</label>
+                        <input type="text" value="${escapeHtml(m.icon)}" onchange="updateMilestone(${idx}, 'icon', this.value)" class="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs outline-none text-center">
+                    </div>
+                    <div class="col-span-6">
+                        <label class="text-[10px] font-bold text-slate-400 block">Badge Label</label>
+                        <input type="text" value="${escapeHtml(m.name)}" onchange="updateMilestone(${idx}, 'name', this.value)" class="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium outline-none">
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function updateMilestone(index, field, value) {
+            if (field === 'pts') state.settings.milestones[index].pts = parseInt(value, 10) || 0;
+            if (field === 'icon') state.settings.milestones[index].icon = value.trim();
+            if (field === 'name') state.settings.milestones[index].name = value.trim();
+            saveData();
+        }
+
+        async function requestResetScores() {
+            const confirmed = await showCustomConfirm(
+                "Reset Today's Scores?",
+                "Are you sure you want to reset all student scores to 0 now?"
+            );
+
+            if (confirmed) {
+                state.students.forEach(s => s.score = 0);
+                saveData();
+                renderGrid();
+                renderStats();
+                closeSettings();
+            }
+        }
+
+        // Custom Confirmation Modal
+        function showCustomConfirm(title, message) {
+            return new Promise((resolve) => {
+                confirmResolver = resolve;
+                document.getElementById('confirm-title').innerText = title;
+                document.getElementById('confirm-message').innerText = message;
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            });
+        }
+
+        function closeConfirmModal(result) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (confirmResolver) {
+                confirmResolver(result);
+                confirmResolver = null;
+            }
+        }
+
+        function showCustomModal(title, message) {
+            showCustomConfirm(title, message);
+            document.getElementById('confirm-cancel-btn').classList.add('hidden');
+            document.getElementById('confirm-ok-btn').innerText = 'OK';
+        }
+
+        // Helper string escaping
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+        }
+
+        // Boot Up Application on Window Load
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
